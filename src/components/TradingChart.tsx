@@ -5,6 +5,7 @@ import type { ChartState, Kline } from '@/lib/types';
 import { fetchKlines, wsPool } from '@/lib/binance-api';
 import { calculateSMA, calculateEMA } from '@/lib/indicators';
 import { useDashboardStore } from '@/lib/store';
+import { Activity, ActivitySquare } from 'lucide-react';
 
 interface TradingChartProps {
   chartState: ChartState;
@@ -24,6 +25,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   const [chartInitialized, setChartInitialized] = useState(false);
   const { setSelectedChart, selectedChart } = useDashboardStore();
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
 
   // Initialize chart with v5 API
   useEffect(() => {
@@ -279,7 +281,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
   // WebSocket real-time updates
   useEffect(() => {
-    if (!chartInitialized) return;
+    if (!chartInitialized || !liveUpdatesEnabled) return;
 
     const unsubscribe = wsPool.subscribe(
       chartState.symbol,
@@ -320,10 +322,15 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     );
 
     return unsubscribe;
-  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized]);
+  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled]);
 
   const handleChartClick = () => {
     setSelectedChart(chartState.id);
+  };
+
+  const toggleLiveUpdates = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLiveUpdatesEnabled(prev => !prev);
   };
 
   const isSelected = selectedChart === chartState.id;
@@ -345,6 +352,24 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
             <span className="text-gray-400 text-xs animate-pulse">Loading...</span>
           )}
         </div>
+        
+        {/* Live updates toggle button */}
+        <button
+          onClick={toggleLiveUpdates}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ${
+            liveUpdatesEnabled
+              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+              : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+          }`}
+          title={liveUpdatesEnabled ? 'Live updates enabled' : 'Live updates disabled'}
+        >
+          {liveUpdatesEnabled ? (
+            <Activity className="w-3.5 h-3.5 animate-pulse" />
+          ) : (
+            <ActivitySquare className="w-3.5 h-3.5" />
+          )}
+          <span>{liveUpdatesEnabled ? 'LIVE' : 'PAUSED'}</span>
+        </button>
       </div>
 
       {/* Chart container */}
