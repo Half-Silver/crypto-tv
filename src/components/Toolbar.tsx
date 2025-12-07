@@ -3,8 +3,8 @@
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useDashboardStore } from '@/lib/store';
-import { LayoutGrid, TrendingUp, Activity, BarChart3 } from 'lucide-react';
-import type { TimeInterval } from '@/lib/types';
+import { LayoutGrid, TrendingUp, Activity, BarChart3, DollarSign } from 'lucide-react';
+import type { TimeInterval, Currency } from '@/lib/types';
 
 const INTERVALS: { value: TimeInterval; label: string }[] = [
   { value: '1m', label: '1m' },
@@ -23,12 +23,20 @@ const INTERVALS: { value: TimeInterval; label: string }[] = [
   { value: '1M', label: '1M' },
 ];
 
+const CURRENCIES: { value: Currency; label: string; symbol: string }[] = [
+  { value: 'USD', label: 'USD', symbol: '$' },
+  { value: 'INR', label: 'INR', symbol: '₹' },
+  { value: 'EUR', label: 'EUR', symbol: '€' },
+  { value: 'GBP', label: 'GBP', symbol: '£' },
+  { value: 'JPY', label: 'JPY', symbol: '¥' },
+];
+
 interface ToolbarProps {
   onLayoutClick: () => void;
 }
 
 export default function Toolbar({ onLayoutClick }: ToolbarProps) {
-  const { selectedChart, charts, updateChartInterval, toggleIndicator } = useDashboardStore();
+  const { selectedChart, charts, currency, updateChartInterval, toggleIndicator, setCurrency } = useDashboardStore();
 
   const selectedChartData = charts.find((c) => c.id === selectedChart);
 
@@ -44,6 +52,10 @@ export default function Toolbar({ onLayoutClick }: ToolbarProps) {
     }
   };
 
+  const handleCurrencyChange = (newCurrency: string) => {
+    setCurrency(newCurrency as Currency);
+  };
+
   return (
     <div className="h-12 bg-[#1E222D] border-b border-[#2B2B43] flex items-center px-4 gap-3">
       {/* Layout selector button */}
@@ -56,6 +68,29 @@ export default function Toolbar({ onLayoutClick }: ToolbarProps) {
         <LayoutGrid className="w-4 h-4 mr-2" />
         Layout
       </Button>
+
+      <div className="w-px h-6 bg-[#2B2B43]" />
+
+      {/* Currency selector */}
+      <div className="flex items-center gap-2">
+        <DollarSign className="w-4 h-4 text-gray-400" />
+        <Select value={currency} onValueChange={handleCurrencyChange}>
+          <SelectTrigger className="w-[90px] h-8 bg-[#2A2E39] border-[#2B2B43] text-white text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-[#1E222D] border-[#2B2B43]">
+            {CURRENCIES.map((curr) => (
+              <SelectItem
+                key={curr.value}
+                value={curr.value}
+                className="text-white hover:bg-[#2A2E39] focus:bg-[#2A2E39] cursor-pointer"
+              >
+                {curr.symbol} {curr.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="w-px h-6 bg-[#2B2B43]" />
 

@@ -23,35 +23,40 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   const [isLoading, setIsLoading] = useState(true);
   const initializingRef = useRef(false);
   const [chartInitialized, setChartInitialized] = useState(false);
-  const { setSelectedChart, selectedChart } = useDashboardStore();
+  const { setSelectedChart, selectedChart, currency, exchangeRates, setExchangeRates } = useDashboardStore();
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
   
   // Live price state
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
-  const [usdToInr, setUsdToInr] = useState<number>(83.5); // Default INR rate
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
 
-  // Fetch USD to INR exchange rate
+  // Fetch exchange rates
   useEffect(() => {
-    const fetchExchangeRate = async () => {
+    const fetchExchangeRates = async () => {
       try {
         const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
         const data = await response.json();
-        if (data.rates?.INR) {
-          setUsdToInr(data.rates.INR);
+        if (data.rates) {
+          setExchangeRates({
+            USD: 1,
+            INR: data.rates.INR || 83.5,
+            EUR: data.rates.EUR || 0.92,
+            GBP: data.rates.GBP || 0.79,
+            JPY: data.rates.JPY || 149.5,
+          });
         }
       } catch (error) {
-        console.error('Failed to fetch exchange rate, using default:', error);
+        console.error('Failed to fetch exchange rates, using defaults:', error);
       }
     };
 
-    fetchExchangeRate();
-    // Refresh exchange rate every hour
-    const interval = setInterval(fetchExchangeRate, 3600000);
+    fetchExchangeRates();
+    // Refresh exchange rates every hour
+    const interval = setInterval(fetchExchangeRates, 3600000);
     return () => clearInterval(interval);
-  }, []);
+  }, [setExchangeRates]);
 
   // Initialize chart with v5 API
   useEffect(() => {
@@ -189,6 +194,31 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     };
   }, []);
 
+  // Update chart price scale when currency changes
+  useEffect(() => {
+    if (!chartRef.current || !candlestickSeriesRef.current || !chartInitialized) return;
+
+    const rate = exchangeRates[currency] || 1;
+    
+    try {
+      // Update candlestick series with currency conversion
+      candlestickSeriesRef.current.applyOptions({
+        priceFormat: {
+          type: 'price',
+          precision: currency === 'JPY' ? 0 : 2,
+          minMove: currency === 'JPY' ? 1 : 0.01,
+        },
+      });
+
+      // Update price scale
+      chartRef.current.priceScale('right').applyOptions({
+        borderColor: '#2B2B43',
+      });
+    } catch (error) {
+      console.error('Error updating chart currency:', error);
+    }
+  }, [currency, exchangeRates, chartInitialized]);
+
   // Fetch initial data
   useEffect(() => {
     let isMounted = true;
@@ -214,17 +244,19 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     };
   }, [chartState.symbol, chartState.interval]);
 
-  // Update chart data
+  // Update chart data with currency conversion
   useEffect(() => {
     if (!candlestickSeriesRef.current || !volumeSeriesRef.current || klineData.length === 0 || !chartInitialized) return;
+
+    const rate = exchangeRates[currency] || 1;
 
     try {
       const candleData = klineData.map((k) => ({
         time: k.time,
-        open: k.open,
-        high: k.high,
-        low: k.low,
-        close: k.close,
+        open: k.open * rate,
+        high: k.high * rate,
+        low: k.low * rate,
+        close: k.close * rate,
       }));
 
       const volumeData = klineData.map((k) => ({
@@ -243,11 +275,13 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     } catch (error) {
       console.error('Error updating chart data:', error);
     }
-  }, [klineData, chartState.indicators.volume?.visible, chartInitialized]);
+  }, [klineData, chartState.indicators.volume?.visible, chartInitialized, currency, exchangeRates]);
 
-  // Update SMA indicator
+  // Update SMA indicator with currency conversion
   useEffect(() => {
     if (!chartRef.current || klineData.length === 0 || !chartInitialized) return;
+
+    const rate = exchangeRates[currency] || 1;
 
     // Dynamic import for v5 API
     import('lightweight-charts').then((LWC) => {
@@ -266,7 +300,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
           
           const validData = smaData
             .filter((d) => d.value !== null)
-            .map((d) => ({ time: d.time, value: d.value! }));
+            .map((d) => ({ time: d.time, value: d.value! * rate }));
           
           series.setData(validData);
           smaSeriesRef.current = series;
@@ -275,11 +309,13 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         console.error('Error updating SMA:', error);
       }
     });
-  }, [klineData, chartState.indicators.sma, chartInitialized]);
+  }, [klineData, chartState.indicators.sma, chartInitialized, currency, exchangeRates]);
 
-  // Update EMA indicator
+  // Update EMA indicator with currency conversion
   useEffect(() => {
     if (!chartRef.current || klineData.length === 0 || !chartInitialized) return;
+
+    const rate = exchangeRates[currency] || 1;
 
     // Dynamic import for v5 API
     import('lightweight-charts').then((LWC) => {
@@ -298,7 +334,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
           
           const validData = emaData
             .filter((d) => d.value !== null)
-            .map((d) => ({ time: d.time, value: d.value! }));
+            .map((d) => ({ time: d.time, value: d.value! * rate }));
           
           series.setData(validData);
           emaSeriesRef.current = series;
@@ -307,11 +343,13 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         console.error('Error updating EMA:', error);
       }
     });
-  }, [klineData, chartState.indicators.ema, chartInitialized]);
+  }, [klineData, chartState.indicators.ema, chartInitialized, currency, exchangeRates]);
 
   // WebSocket real-time updates
   useEffect(() => {
     if (!chartInitialized || !liveUpdatesEnabled) return;
+
+    const rate = exchangeRates[currency] || 1;
 
     const unsubscribe = wsPool.subscribe(
       chartState.symbol,
@@ -321,10 +359,10 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
           try {
             candlestickSeriesRef.current.update({
               time: newKline.time,
-              open: newKline.open,
-              high: newKline.high,
-              low: newKline.low,
-              close: newKline.close,
+              open: newKline.open * rate,
+              high: newKline.high * rate,
+              low: newKline.low * rate,
+              close: newKline.close * rate,
             });
 
             if (chartState.indicators.volume?.visible) {
@@ -363,7 +401,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     );
 
     return unsubscribe;
-  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currentPrice, klineData]);
+  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currentPrice, klineData, currency, exchangeRates]);
 
   const handleChartClick = () => {
     setSelectedChart(chartState.id);
@@ -376,10 +414,23 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
   const isSelected = selectedChart === chartState.id;
   
-  // Format price in INR
-  const priceInINR = currentPrice ? currentPrice * usdToInr : null;
+  // Format price in selected currency
+  const rate = exchangeRates[currency] || 1;
+  const convertedPrice = currentPrice ? currentPrice * rate : null;
   const isPriceUp = currentPrice && previousPrice ? currentPrice > previousPrice : false;
   const isPriceDown = currentPrice && previousPrice ? currentPrice < previousPrice : false;
+
+  // Currency symbols
+  const currencySymbols: Record<string, string> = {
+    USD: '$',
+    INR: '₹',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+  };
+
+  const currencySymbol = currencySymbols[currency] || '$';
+  const precision = currency === 'JPY' ? 0 : 2;
 
   return (
     <div 
@@ -397,16 +448,16 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
             <span className="text-gray-400 text-xs">{chartState.interval}</span>
           </div>
           
-          {/* Live Price in INR */}
-          {priceInINR && (
+          {/* Live Price in selected currency */}
+          {convertedPrice && (
             <div className="flex items-center gap-2 px-2 py-0.5 bg-[#2a2e39] rounded border border-[#2b2b43]">
               <div className="flex items-center gap-1">
                 <span className={`text-sm font-bold ${
                   isPriceUp ? 'text-green-400' : isPriceDown ? 'text-red-400' : 'text-white'
                 }`}>
-                  ₹{priceInINR.toLocaleString('en-IN', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
+                  {currencySymbol}{convertedPrice.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US', { 
+                    minimumFractionDigits: precision, 
+                    maximumFractionDigits: precision 
                   })}
                 </span>
                 {isPriceUp && <TrendingUp className="w-3 h-3 text-green-400" />}

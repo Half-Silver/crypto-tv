@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ChartState, LayoutConfig, SyncMode, DashboardState } from './types';
+import type { ChartState, LayoutConfig, SyncMode, DashboardState, Currency } from './types';
 
 const DEFAULT_LAYOUTS: LayoutConfig[] = [
   { id: '1x1', name: '1×1', rows: 1, cols: 1, cells: 1 },
@@ -12,6 +12,8 @@ const DEFAULT_LAYOUTS: LayoutConfig[] = [
 ];
 
 interface DashboardStore extends DashboardState {
+  currency: Currency;
+  exchangeRates: Record<string, number>;
   setLayout: (layout: LayoutConfig) => void;
   updateChart: (id: string, updates: Partial<ChartState>) => void;
   setSyncMode: (syncMode: Partial<SyncMode>) => void;
@@ -19,6 +21,8 @@ interface DashboardStore extends DashboardState {
   updateChartSymbol: (id: string, symbol: string) => void;
   updateChartInterval: (id: string, interval: string) => void;
   toggleIndicator: (chartId: string, indicator: string) => void;
+  setCurrency: (currency: Currency) => void;
+  setExchangeRates: (rates: Record<string, number>) => void;
 }
 
 const createInitialCharts = (count: number): ChartState[] => {
@@ -45,6 +49,14 @@ export const useDashboardStore = create<DashboardStore>()(
         crosshair: false,
       },
       selectedChart: null,
+      currency: 'INR',
+      exchangeRates: {
+        USD: 1,
+        INR: 83.5,
+        EUR: 0.92,
+        GBP: 0.79,
+        JPY: 149.5,
+      },
 
       setLayout: (layout) => {
         set((state) => {
@@ -141,12 +153,21 @@ export const useDashboardStore = create<DashboardStore>()(
           }),
         }));
       },
+
+      setCurrency: (currency) => {
+        set({ currency });
+      },
+
+      setExchangeRates: (rates) => {
+        set({ exchangeRates: rates });
+      },
     }),
     {
       name: 'dashboard-storage',
       partialize: (state) => ({
         layout: state.layout,
         syncMode: state.syncMode,
+        currency: state.currency,
         charts: state.charts.map(({ id, symbol, interval, indicators }) => ({
           id,
           symbol,
