@@ -93,6 +93,9 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
               timeVisible: true,
               secondsVisible: false,
             },
+            watermark: {
+              visible: false,
+            },
             width: chartContainerRef.current.clientWidth,
             height: chartContainerRef.current.clientHeight,
           });
