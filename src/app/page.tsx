@@ -25,15 +25,19 @@ export default function Home() {
         {/* Chart grid */}
         <div className="flex-1 p-2 overflow-auto">
           <div
-            className="w-full gap-2"
+            className="w-full h-full gap-2"
             style={{
               display: 'grid',
-              gridTemplateRows: `repeat(${layout.rows}, minmax(400px, 1fr))`,
+              gridTemplateRows: `repeat(${layout.rows}, 1fr)`,
               gridTemplateColumns: `repeat(${layout.cols}, 1fr)`,
+              minHeight: `${layout.rows * 400}px`,
             }}
           >
             {charts.slice(0, layout.cells).map((chartState) => (
-              <div key={chartState.id} className="min-h-[400px]">
+              <div 
+                key={chartState.id} 
+                className="min-h-[400px] border border-[#2b2b43] rounded-lg bg-[#1e222d] overflow-hidden"
+              >
                 <TradingChart chartState={chartState} />
               </div>
             ))}

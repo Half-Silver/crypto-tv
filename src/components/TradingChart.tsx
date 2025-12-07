@@ -42,12 +42,12 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
           // Create chart using v5 API
           chart = LWC.createChart(chartContainerRef.current, {
             layout: {
-              background: { color: '#131722' },
+              background: { color: '#1e222d' },
               textColor: '#d1d4dc',
             },
             grid: {
-              vertLines: { color: '#1e222d' },
-              horzLines: { color: '#1e222d' },
+              vertLines: { color: '#2b2b43' },
+              horzLines: { color: '#2b2b43' },
             },
             crosshair: {
               mode: LWC.CrosshairMode.Normal,
@@ -330,15 +330,14 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
   return (
     <div 
-      className="relative h-full w-full bg-[#131722] rounded-lg overflow-hidden cursor-pointer"
+      className="relative h-full w-full flex flex-col cursor-pointer transition-all duration-200"
       onClick={handleChartClick}
       style={{
-        outline: isSelected ? '2px solid #2962FF' : 'none',
-        outlineOffset: '-2px',
+        boxShadow: isSelected ? 'inset 0 0 0 2px #2962FF' : 'none',
       }}
     >
       {/* Chart header */}
-      <div className="absolute top-0 left-0 right-0 z-10 px-3 py-2 flex items-center justify-between pointer-events-none">
+      <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between bg-[#1e222d] border-b border-[#2b2b43]">
         <div className="flex items-center gap-2">
           <span className="text-white font-semibold text-sm">{chartState.symbol}</span>
           <span className="text-gray-400 text-xs">{chartState.interval}</span>
@@ -349,7 +348,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       </div>
 
       {/* Chart container */}
-      <div ref={chartContainerRef} className="w-full h-full" />
+      <div ref={chartContainerRef} className="flex-1 w-full" />
     </div>
   );
 }
