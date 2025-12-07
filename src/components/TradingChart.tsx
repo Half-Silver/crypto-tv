@@ -5,7 +5,7 @@ import type { ChartState, Kline } from '@/lib/types';
 import { fetchKlines, wsPool } from '@/lib/binance-api';
 import { calculateSMA, calculateEMA } from '@/lib/indicators';
 import { useDashboardStore } from '@/lib/store';
-import { Activity, ActivitySquare } from 'lucide-react';
+import { Activity, ActivitySquare, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface TradingChartProps {
   chartState: ChartState;
@@ -26,6 +26,32 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   const { setSelectedChart, selectedChart } = useDashboardStore();
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
+  
+  // Live price state
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [previousPrice, setPreviousPrice] = useState<number | null>(null);
+  const [usdToInr, setUsdToInr] = useState<number>(83.5); // Default INR rate
+  const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
+
+  // Fetch USD to INR exchange rate
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      try {
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data = await response.json();
+        if (data.rates?.INR) {
+          setUsdToInr(data.rates.INR);
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate, using default:', error);
+      }
+    };
+
+    fetchExchangeRate();
+    // Refresh exchange rate every hour
+    const interval = setInterval(fetchExchangeRate, 3600000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Initialize chart with v5 API
   useEffect(() => {
@@ -173,6 +199,10 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       
       if (isMounted && data.length > 0) {
         setKlineData(data);
+        // Set initial price from latest kline
+        const latestKline = data[data.length - 1];
+        setCurrentPrice(latestKline.close);
+        setPreviousPrice(latestKline.close);
         setIsLoading(false);
       }
     }
@@ -305,6 +335,17 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
               });
             }
 
+            // Update live price
+            setPreviousPrice(currentPrice);
+            setCurrentPrice(newKline.close);
+            
+            // Calculate 24h price change (approximate using first kline in current data)
+            if (klineData.length > 0) {
+              const firstPrice = klineData[0].open;
+              const changePercent = ((newKline.close - firstPrice) / firstPrice) * 100;
+              setPriceChangePercent(changePercent);
+            }
+
             // Update klineData for indicator recalculation
             setKlineData((prev) => {
               const lastTime = prev[prev.length - 1]?.time;
@@ -322,7 +363,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     );
 
     return unsubscribe;
-  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled]);
+  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currentPrice, klineData]);
 
   const handleChartClick = () => {
     setSelectedChart(chartState.id);
@@ -334,6 +375,11 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   };
 
   const isSelected = selectedChart === chartState.id;
+  
+  // Format price in INR
+  const priceInINR = currentPrice ? currentPrice * usdToInr : null;
+  const isPriceUp = currentPrice && previousPrice ? currentPrice > previousPrice : false;
+  const isPriceDown = currentPrice && previousPrice ? currentPrice < previousPrice : false;
 
   return (
     <div 
@@ -345,9 +391,35 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     >
       {/* Chart header */}
       <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between bg-[#1e222d] border-b border-[#2b2b43]">
-        <div className="flex items-center gap-2">
-          <span className="text-white font-semibold text-sm">{chartState.symbol}</span>
-          <span className="text-gray-400 text-xs">{chartState.interval}</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-white font-semibold text-sm">{chartState.symbol}</span>
+            <span className="text-gray-400 text-xs">{chartState.interval}</span>
+          </div>
+          
+          {/* Live Price in INR */}
+          {priceInINR && (
+            <div className="flex items-center gap-2 px-2 py-0.5 bg-[#2a2e39] rounded border border-[#2b2b43]">
+              <div className="flex items-center gap-1">
+                <span className={`text-sm font-bold ${
+                  isPriceUp ? 'text-green-400' : isPriceDown ? 'text-red-400' : 'text-white'
+                }`}>
+                  ₹{priceInINR.toLocaleString('en-IN', { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                  })}
+                </span>
+                {isPriceUp && <TrendingUp className="w-3 h-3 text-green-400" />}
+                {isPriceDown && <TrendingDown className="w-3 h-3 text-red-400" />}
+              </div>
+              <div className={`text-xs font-medium ${
+                priceChangePercent >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%
+              </div>
+            </div>
+          )}
+          
           {(isLoading || !chartInitialized) && (
             <span className="text-gray-400 text-xs animate-pulse">Loading...</span>
           )}
