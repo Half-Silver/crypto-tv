@@ -106,23 +106,3 @@ nextjs-portal {
 ::-webkit-scrollbar-thumb:hover {
   background: #363a45;
 }
-
-/* Hide TradingView watermark - all possible selectors */
-.tv-lightweight-charts div[style*="pointer-events: none"] {
-  display: none !important;
-}
-
-.tv-lightweight-charts canvas + div {
-  display: none !important;
-}
-
-/* Target watermark by position */
-div[style*="position: absolute"][style*="left"][style*="bottom"] {
-  display: none !important;
-}
-
-/* Hide any element containing "TV" text watermark */
-.tv-lightweight-charts div:not([class]):not([id]) {
-  pointer-events: none !important;
-  opacity: 0 !important;
-}
