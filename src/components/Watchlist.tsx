@@ -62,7 +62,7 @@ export default function Watchlist() {
   };
 
   return (
-    <div className="w-64 bg-[#1E222D] border-r border-[#2B2B43] flex flex-col">
+    <div className="w-64 bg-[#1E222D] border-r border-[#2B2B43] flex flex-col h-full">
       {/* Header */}
       <div className="p-3 border-b border-[#2B2B43]">
         <h2 className="text-white font-semibold text-sm mb-2">Watchlist</h2>
@@ -79,7 +79,7 @@ export default function Watchlist() {
       </div>
 
       {/* Symbol list */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 h-0">
         <div className="p-2">
           {filteredSymbols.map((symbol) => {
             const data = symbolData.get(symbol);
