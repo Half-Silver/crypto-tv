@@ -18,7 +18,28 @@ export default function Watchlist() {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symbolData, setSymbolData] = useState<Map<string, SymbolData>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
+  const [usdToInr, setUsdToInr] = useState<number>(83.5); // Default INR rate
   const { selectedChart, updateChartSymbol } = useDashboardStore();
+
+  // Fetch USD to INR exchange rate
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      try {
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data = await response.json();
+        if (data.rates?.INR) {
+          setUsdToInr(data.rates.INR);
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate, using default:', error);
+      }
+    };
+
+    fetchExchangeRate();
+    // Refresh exchange rate every hour
+    const interval = setInterval(fetchExchangeRate, 3600000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     async function loadSymbols() {
@@ -84,6 +105,7 @@ export default function Watchlist() {
           {filteredSymbols.map((symbol) => {
             const data = symbolData.get(symbol);
             const isPositive = data ? parseFloat(data.changePercent) >= 0 : true;
+            const priceInINR = data ? parseFloat(data.price) * usdToInr : null;
 
             return (
               <button
@@ -108,9 +130,14 @@ export default function Watchlist() {
                     </div>
                   )}
                 </div>
-                {data ? (
+                {data && priceInINR ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-300 text-xs">${data.price}</span>
+                    <span className="text-gray-300 text-xs">
+                      ₹{priceInINR.toLocaleString('en-IN', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                      })}
+                    </span>
                     <span
                       className={`text-xs font-medium ${
                         isPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'

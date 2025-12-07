@@ -383,10 +383,10 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
   return (
     <div 
-      className="relative h-full w-full flex flex-col cursor-pointer transition-all duration-200"
+      className="relative h-full w-full flex flex-col cursor-pointer transition-all duration-200 bg-[#1e222d] rounded-lg overflow-hidden"
       onClick={handleChartClick}
       style={{
-        boxShadow: isSelected ? 'inset 0 0 0 2px #2962FF' : 'none',
+        border: isSelected ? '2px solid #2962FF' : '2px solid #2b2b43',
       }}
     >
       {/* Chart header */}

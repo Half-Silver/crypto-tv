@@ -36,7 +36,7 @@ export default function Home() {
             {charts.slice(0, layout.cells).map((chartState) => (
               <div 
                 key={chartState.id} 
-                className="min-h-[400px] border border-[#2b2b43] rounded-lg bg-[#1e222d] overflow-hidden"
+                className="min-h-[400px] rounded-lg overflow-hidden"
               >
                 <TradingChart chartState={chartState} />
               </div>
