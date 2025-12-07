@@ -1,3 +1,5 @@
+/* Updated: 2025-12-07T03:13:28.194Z */
+/* Updated: 2025-12-07T02:54:21.136Z */
 /* Updated: 2025-12-06T17:16:45.661Z */
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -103,4 +105,24 @@ nextjs-portal {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #363a45;
+}
+
+/* Hide TradingView watermark - all possible selectors */
+.tv-lightweight-charts div[style*="pointer-events: none"] {
+  display: none !important;
+}
+
+.tv-lightweight-charts canvas + div {
+  display: none !important;
+}
+
+/* Target watermark by position */
+div[style*="position: absolute"][style*="left"][style*="bottom"] {
+  display: none !important;
+}
+
+/* Hide any element containing "TV" text watermark */
+.tv-lightweight-charts div:not([class]):not([id]) {
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
