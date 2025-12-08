@@ -271,19 +271,48 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     const rate = exchangeRates[currency] || 1;
 
     try {
-      const candleData = klineData.map((k) => ({
-        time: k.time,
-        open: k.open * rate,
-        high: k.high * rate,
-        low: k.low * rate,
-        close: k.close * rate,
-      }));
+      // Filter and validate candlestick data
+      const candleData = klineData
+        .filter((k) => {
+          // Ensure all OHLC values are valid numbers
+          return (
+            k &&
+            typeof k.time === 'number' &&
+            typeof k.open === 'number' &&
+            typeof k.high === 'number' &&
+            typeof k.low === 'number' &&
+            typeof k.close === 'number' &&
+            !isNaN(k.open) &&
+            !isNaN(k.high) &&
+            !isNaN(k.low) &&
+            !isNaN(k.close) &&
+            k.open > 0 &&
+            k.high > 0 &&
+            k.low > 0 &&
+            k.close > 0
+          );
+        })
+        .map((k) => ({
+          time: k.time,
+          open: k.open * rate,
+          high: k.high * rate,
+          low: k.low * rate,
+          close: k.close * rate,
+        }));
 
-      const volumeData = klineData.map((k) => ({
-        time: k.time,
-        value: k.volume,
-        color: k.close >= k.open ? '#26a69a40' : '#ef535040',
-      }));
+      // Only update if we have valid data
+      if (candleData.length === 0) {
+        console.warn('No valid candlestick data to display');
+        return;
+      }
+
+      const volumeData = klineData
+        .filter((k) => k && typeof k.volume === 'number' && !isNaN(k.volume))
+        .map((k) => ({
+          time: k.time,
+          value: k.volume,
+          color: k.close >= k.open ? '#26a69a40' : '#ef535040',
+        }));
 
       candlestickSeriesRef.current.setData(candleData);
       
@@ -445,6 +474,29 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       chartState.interval,
       (newKline) => {
         if (currentSymbolRef.current !== chartState.symbol || currentIntervalRef.current !== chartState.interval) {
+          return;
+        }
+
+        // Validate newKline data before using it
+        if (
+          !newKline ||
+          typeof newKline.time !== 'number' ||
+          typeof newKline.open !== 'number' ||
+          typeof newKline.high !== 'number' ||
+          typeof newKline.low !== 'number' ||
+          typeof newKline.close !== 'number' ||
+          typeof newKline.volume !== 'number' ||
+          isNaN(newKline.open) ||
+          isNaN(newKline.high) ||
+          isNaN(newKline.low) ||
+          isNaN(newKline.close) ||
+          isNaN(newKline.volume) ||
+          newKline.open <= 0 ||
+          newKline.high <= 0 ||
+          newKline.low <= 0 ||
+          newKline.close <= 0
+        ) {
+          console.warn(`[Chart ${chartState.id}] Invalid kline data from WebSocket:`, newKline);
           return;
         }
 

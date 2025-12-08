@@ -98,13 +98,30 @@ class WebSocketPool {
         const kline: BinanceKlineData = data.k;
         
         if (kline) {
+          const open = parseFloat(kline.o);
+          const high = parseFloat(kline.h);
+          const low = parseFloat(kline.l);
+          const close = parseFloat(kline.c);
+          const volume = parseFloat(kline.v);
+          const time = kline.t / 1000;
+          
+          // Validate all values before creating the formatted kline
+          if (
+            isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close) || isNaN(volume) || isNaN(time) ||
+            open <= 0 || high <= 0 || low <= 0 || close <= 0 ||
+            !kline.o || !kline.h || !kline.l || !kline.c || !kline.v
+          ) {
+            console.warn(`⚠️ Invalid kline data from Binance (${streamKey}):`, kline);
+            return;
+          }
+          
           const formattedKline: Kline = {
-            time: kline.t / 1000,
-            open: parseFloat(kline.o),
-            high: parseFloat(kline.h),
-            low: parseFloat(kline.l),
-            close: parseFloat(kline.c),
-            volume: parseFloat(kline.v),
+            time,
+            open,
+            high,
+            low,
+            close,
+            volume,
           };
           
           const subscribers = this.subscribers.get(streamKey);
