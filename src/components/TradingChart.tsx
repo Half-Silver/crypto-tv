@@ -388,7 +388,9 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
           try {
-            const rate = exchangeRates[currency] || 1;
+            // Get latest exchange rate at update time
+            const store = useDashboardStore.getState();
+            const rate = store.exchangeRates[store.currency] || 1;
             
             candlestickSeriesRef.current.update({
               time: newKline.time,
@@ -406,10 +408,10 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
               });
             }
 
-            // Update live price
-            setPreviousPrice(prev => {
-              setCurrentPrice(newKline.close);
-              return prev;
+            // Update live price - capture current before updating
+            setCurrentPrice((prevCurrent) => {
+              setPreviousPrice(prevCurrent); // Save current as previous
+              return newKline.close; // Set new as current
             });
             
             // Calculate 24h price change (approximate using first kline in current data)
@@ -429,7 +431,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
               }
             });
           } catch (error) {
-            console.error('Error updating chart from WebSocket:', error);
+            console.error(`[Chart ${chartState.id}] Error updating chart from WebSocket:`, error);
           }
         }
       }
@@ -438,7 +440,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     return () => {
       unsubscribe();
     };
-  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currency]);
+  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled]);
 
   const handleChartClick = () => {
     setSelectedChart(chartState.id);

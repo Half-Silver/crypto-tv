@@ -89,7 +89,7 @@ class WebSocketPool {
     const ws = new WebSocket(`${BINANCE_WS_BASE}/${streamKey}`);
     
     ws.onopen = () => {
-      console.log(`WebSocket connected: ${streamKey}`);
+      console.log(`✅ WebSocket connected: ${streamKey}`);
     };
     
     ws.onmessage = (event) => {
@@ -108,7 +108,8 @@ class WebSocketPool {
           };
           
           const subscribers = this.subscribers.get(streamKey);
-          if (subscribers) {
+          if (subscribers && subscribers.size > 0) {
+            console.log(`📊 Broadcasting to ${subscribers.size} subscribers for ${streamKey}:`, formattedKline.close);
             subscribers.forEach((callback) => callback(formattedKline));
           }
         }
@@ -118,15 +119,16 @@ class WebSocketPool {
     };
     
     ws.onerror = (error) => {
-      console.error(`WebSocket error (${streamKey}):`, error);
+      console.error(`❌ WebSocket error (${streamKey}):`, error);
     };
     
     ws.onclose = () => {
-      console.log(`WebSocket closed: ${streamKey}`);
+      console.log(`🔌 WebSocket closed: ${streamKey}`);
       this.connections.delete(streamKey);
       
       // Attempt to reconnect if there are still subscribers
       if (this.subscribers.get(streamKey)?.size ?? 0 > 0) {
+        console.log(`🔄 Reconnecting ${streamKey} in 3s...`);
         const timer = setTimeout(() => {
           this.connect(streamKey);
         }, 3000);
