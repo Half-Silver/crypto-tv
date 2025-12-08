@@ -32,6 +32,10 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
 
+  // Track current symbol/interval to detect changes
+  const currentSymbolRef = useRef(chartState.symbol);
+  const currentIntervalRef = useRef(chartState.interval);
+
   // Fetch exchange rates
   useEffect(() => {
     const fetchExchangeRates = async () => {
@@ -222,12 +226,18 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     }
   }, [currency, exchangeRates, chartInitialized]);
 
-  // Fetch initial data
+  // Fetch initial data - reset when symbol or interval changes
   useEffect(() => {
     let isMounted = true;
 
     async function loadData() {
       setIsLoading(true);
+      // Clear existing data when switching symbols
+      setKlineData([]);
+      setCurrentPrice(null);
+      setPreviousPrice(null);
+      setPriceChangePercent(0);
+      
       const data = await fetchKlines(chartState.symbol, chartState.interval, 500);
       
       if (isMounted && data.length > 0) {
@@ -237,8 +247,14 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         setCurrentPrice(latestKline.close);
         setPreviousPrice(latestKline.close);
         setIsLoading(false);
+      } else if (isMounted) {
+        setIsLoading(false);
       }
     }
+
+    // Update refs to track current symbol/interval
+    currentSymbolRef.current = chartState.symbol;
+    currentIntervalRef.current = chartState.interval;
 
     loadData();
 
@@ -274,6 +290,15 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         volumeSeriesRef.current.setData(volumeData);
       } else {
         volumeSeriesRef.current.setData([]);
+      }
+
+      // Auto-fit content after data is loaded
+      if (chartRef.current && chartRef.current.timeScale) {
+        try {
+          chartRef.current.timeScale().fitContent();
+        } catch (e) {
+          // Ignore fit content errors
+        }
       }
     } catch (error) {
       console.error('Error updating chart data:', error);
@@ -348,7 +373,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     });
   }, [klineData, chartState.indicators.ema, chartInitialized, currency, exchangeRates]);
 
-  // WebSocket real-time updates
+  // WebSocket real-time updates with proper cleanup
   useEffect(() => {
     if (!chartInitialized || !liveUpdatesEnabled) return;
 
@@ -356,6 +381,11 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       chartState.symbol,
       chartState.interval,
       (newKline) => {
+        // Only process if this is still the current symbol/interval
+        if (currentSymbolRef.current !== chartState.symbol || currentIntervalRef.current !== chartState.interval) {
+          return;
+        }
+
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
           try {
             const rate = exchangeRates[currency] || 1;
@@ -405,7 +435,9 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       }
     );
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currency]);
 
   const handleChartClick = () => {

@@ -23,20 +23,19 @@ export default function Home() {
         <Watchlist />
 
         {/* Chart grid */}
-        <div className="flex-1 p-2 overflow-auto">
+        <div className="flex-1 p-2 overflow-hidden flex flex-col">
           <div
-            className="w-full h-full gap-2"
+            className="w-full flex-1 gap-2"
             style={{
               display: 'grid',
               gridTemplateRows: `repeat(${layout.rows}, 1fr)`,
               gridTemplateColumns: `repeat(${layout.cols}, 1fr)`,
-              minHeight: `${layout.rows * 400}px`,
             }}
           >
             {charts.slice(0, layout.cells).map((chartState) => (
               <div 
                 key={chartState.id} 
-                className="min-h-[400px] rounded-lg overflow-hidden"
+                className="min-h-0 rounded-lg overflow-hidden"
               >
                 <TradingChart chartState={chartState} />
               </div>
