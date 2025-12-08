@@ -352,14 +352,14 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   useEffect(() => {
     if (!chartInitialized || !liveUpdatesEnabled) return;
 
-    const rate = exchangeRates[currency] || 1;
-
     const unsubscribe = wsPool.subscribe(
       chartState.symbol,
       chartState.interval,
       (newKline) => {
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
           try {
+            const rate = exchangeRates[currency] || 1;
+            
             candlestickSeriesRef.current.update({
               time: newKline.time,
               open: newKline.open * rate,
@@ -377,18 +377,20 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
             }
 
             // Update live price
-            setPreviousPrice(currentPrice);
-            setCurrentPrice(newKline.close);
+            setPreviousPrice(prev => {
+              setCurrentPrice(newKline.close);
+              return prev;
+            });
             
             // Calculate 24h price change (approximate using first kline in current data)
-            if (klineData.length > 0) {
-              const firstPrice = klineData[0].open;
-              const changePercent = ((newKline.close - firstPrice) / firstPrice) * 100;
-              setPriceChangePercent(changePercent);
-            }
-
-            // Update klineData for indicator recalculation
             setKlineData((prev) => {
+              if (prev.length > 0) {
+                const firstPrice = prev[0].open;
+                const changePercent = ((newKline.close - firstPrice) / firstPrice) * 100;
+                setPriceChangePercent(changePercent);
+              }
+              
+              // Update klineData for indicator recalculation
               const lastTime = prev[prev.length - 1]?.time;
               if (lastTime === newKline.time) {
                 return [...prev.slice(0, -1), newKline];
@@ -404,7 +406,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     );
 
     return unsubscribe;
-  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currentPrice, klineData, currency, exchangeRates]);
+  }, [chartState.symbol, chartState.interval, chartState.indicators.volume?.visible, chartInitialized, liveUpdatesEnabled, currency]);
 
   const handleChartClick = () => {
     setSelectedChart(chartState.id);
