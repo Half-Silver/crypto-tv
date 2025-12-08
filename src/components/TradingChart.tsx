@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChartState, Kline } from '@/lib/types';
 import { fetchKlines, wsPool } from '@/lib/binance-api';
-import { calculateSMA, calculateEMA } from '@/lib/indicators';
+import { calculateEMA, calculateRSI, analyzeScalpingSetup, type ScalpingSignal } from '@/lib/indicators';
 import { useDashboardStore } from '@/lib/store';
 import { Activity, ActivitySquare, TrendingUp, TrendingDown } from 'lucide-react';
+import { ScalpingPanel } from './ScalpingPanel';
 
 interface TradingChartProps {
   chartState: ChartState;
@@ -17,13 +18,14 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   const chartRef = useRef<any>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
-  const smaSeriesRef = useRef<any>(null);
-  const emaSeriesRef = useRef<any>(null);
+  const ema20SeriesRef = useRef<any>(null);
+  const ema50SeriesRef = useRef<any>(null);
+  const rsiSeriesRef = useRef<any>(null);
   const [klineData, setKlineData] = useState<Kline[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const initializingRef = useRef(false);
   const [chartInitialized, setChartInitialized] = useState(false);
-  const { setSelectedChart, selectedChart, currency, exchangeRates, setExchangeRates } = useDashboardStore();
+  const { setSelectedChart, selectedChart, currency, exchangeRates, setExchangeRates, scalpingMode } = useDashboardStore();
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
   
@@ -31,6 +33,18 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
+
+  // Scalping signal state
+  const [scalpingSignal, setScalpingSignal] = useState<ScalpingSignal>({
+    type: 'NEUTRAL',
+    strength: 'WEAK',
+    reasons: [],
+    entryPrice: 0,
+    stopLoss: 0,
+    takeProfit1: 0,
+    takeProfit2: 0,
+    takeProfit3: 0,
+  });
 
   // Track current symbol/interval to detect changes
   const currentSymbolRef = useRef(chartState.symbol);
@@ -57,7 +71,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     };
 
     fetchExchangeRates();
-    // Refresh exchange rates every hour
     const interval = setInterval(fetchExchangeRates, 3600000);
     return () => clearInterval(interval);
   }, [setExchangeRates]);
@@ -70,13 +83,11 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     let chart: any = null;
     let resizeObserver: ResizeObserver | null = null;
 
-    // Dynamic import of lightweight-charts v5
     import('lightweight-charts')
       .then((LWC) => {
         if (!chartContainerRef.current) return;
 
         try {
-          // Create chart using v5 API
           chart = LWC.createChart(chartContainerRef.current, {
             layout: {
               background: { color: '#1e222d' },
@@ -106,7 +117,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
           chartRef.current = chart;
 
-          // Create candlestick series using v5 API
           const candlestickSeries = chart.addSeries(LWC.CandlestickSeries, {
             upColor: '#26a69a',
             downColor: '#ef5350',
@@ -117,7 +127,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
           });
           candlestickSeriesRef.current = candlestickSeries;
 
-          // Create volume series using v5 API
           const volumeSeries = chart.addSeries(LWC.HistogramSeries, {
             priceFormat: {
               type: 'volume',
@@ -133,7 +142,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
             },
           });
 
-          // Debounced resize handler to prevent ResizeObserver errors
           const handleResize = () => {
             if (resizeTimeoutRef.current) {
               clearTimeout(resizeTimeoutRef.current);
@@ -205,10 +213,7 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
   useEffect(() => {
     if (!chartRef.current || !candlestickSeriesRef.current || !chartInitialized) return;
 
-    const rate = exchangeRates[currency] || 1;
-    
     try {
-      // Update candlestick series with currency conversion
       candlestickSeriesRef.current.applyOptions({
         priceFormat: {
           type: 'price',
@@ -217,7 +222,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         },
       });
 
-      // Update price scale
       chartRef.current.priceScale('right').applyOptions({
         borderColor: '#2B2B43',
       });
@@ -226,13 +230,12 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     }
   }, [currency, exchangeRates, chartInitialized]);
 
-  // Fetch initial data - reset when symbol or interval changes
+  // Fetch initial data
   useEffect(() => {
     let isMounted = true;
 
     async function loadData() {
       setIsLoading(true);
-      // Clear existing data when switching symbols
       setKlineData([]);
       setCurrentPrice(null);
       setPreviousPrice(null);
@@ -242,7 +245,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       
       if (isMounted && data.length > 0) {
         setKlineData(data);
-        // Set initial price from latest kline
         const latestKline = data[data.length - 1];
         setCurrentPrice(latestKline.close);
         setPreviousPrice(latestKline.close);
@@ -252,7 +254,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       }
     }
 
-    // Update refs to track current symbol/interval
     currentSymbolRef.current = chartState.symbol;
     currentIntervalRef.current = chartState.interval;
 
@@ -292,7 +293,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         volumeSeriesRef.current.setData([]);
       }
 
-      // Auto-fit content after data is loaded
       if (chartRef.current && chartRef.current.timeScale) {
         try {
           chartRef.current.timeScale().fitContent();
@@ -305,75 +305,138 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
     }
   }, [klineData, chartState.indicators.volume?.visible, chartInitialized, currency, exchangeRates]);
 
-  // Update SMA indicator with currency conversion
+  // Update EMA20 indicator
   useEffect(() => {
     if (!chartRef.current || klineData.length === 0 || !chartInitialized) return;
 
     const rate = exchangeRates[currency] || 1;
 
-    // Dynamic import for v5 API
     import('lightweight-charts').then((LWC) => {
       try {
-        if (smaSeriesRef.current) {
-          chartRef.current.removeSeries(smaSeriesRef.current);
-          smaSeriesRef.current = null;
+        if (ema20SeriesRef.current) {
+          chartRef.current.removeSeries(ema20SeriesRef.current);
+          ema20SeriesRef.current = null;
         }
 
-        if (chartState.indicators.sma?.visible) {
-          const smaData = calculateSMA(klineData, chartState.indicators.sma.period);
+        if (chartState.indicators.ema20?.visible) {
+          const ema20Data = calculateEMA(klineData, 20);
           const series = chartRef.current.addSeries(LWC.LineSeries, {
             color: '#2196F3',
             lineWidth: 2,
+            title: 'EMA20',
           });
           
-          const validData = smaData
+          const validData = ema20Data
             .filter((d) => d.value !== null)
             .map((d) => ({ time: d.time, value: d.value! * rate }));
           
           series.setData(validData);
-          smaSeriesRef.current = series;
+          ema20SeriesRef.current = series;
         }
       } catch (error) {
-        console.error('Error updating SMA:', error);
+        console.error('Error updating EMA20:', error);
       }
     });
-  }, [klineData, chartState.indicators.sma, chartInitialized, currency, exchangeRates]);
+  }, [klineData, chartState.indicators.ema20, chartInitialized, currency, exchangeRates]);
 
-  // Update EMA indicator with currency conversion
+  // Update EMA50 indicator
   useEffect(() => {
     if (!chartRef.current || klineData.length === 0 || !chartInitialized) return;
 
     const rate = exchangeRates[currency] || 1;
 
-    // Dynamic import for v5 API
     import('lightweight-charts').then((LWC) => {
       try {
-        if (emaSeriesRef.current) {
-          chartRef.current.removeSeries(emaSeriesRef.current);
-          emaSeriesRef.current = null;
+        if (ema50SeriesRef.current) {
+          chartRef.current.removeSeries(ema50SeriesRef.current);
+          ema50SeriesRef.current = null;
         }
 
-        if (chartState.indicators.ema?.visible) {
-          const emaData = calculateEMA(klineData, chartState.indicators.ema.period);
+        if (chartState.indicators.ema50?.visible) {
+          const ema50Data = calculateEMA(klineData, 50);
           const series = chartRef.current.addSeries(LWC.LineSeries, {
             color: '#FF6D00',
             lineWidth: 2,
+            title: 'EMA50',
           });
           
-          const validData = emaData
+          const validData = ema50Data
             .filter((d) => d.value !== null)
             .map((d) => ({ time: d.time, value: d.value! * rate }));
           
           series.setData(validData);
-          emaSeriesRef.current = series;
+          ema50SeriesRef.current = series;
         }
       } catch (error) {
-        console.error('Error updating EMA:', error);
+        console.error('Error updating EMA50:', error);
       }
     });
-  }, [klineData, chartState.indicators.ema, chartInitialized, currency, exchangeRates]);
+  }, [klineData, chartState.indicators.ema50, chartInitialized, currency, exchangeRates]);
 
-  // WebSocket real-time updates with proper cleanup
+  // Update RSI indicator
+  useEffect(() => {
+    if (!chartRef.current || klineData.length === 0 || !chartInitialized) return;
+
+    import('lightweight-charts').then((LWC) => {
+      try {
+        if (rsiSeriesRef.current) {
+          chartRef.current.removeSeries(rsiSeriesRef.current);
+          rsiSeriesRef.current = null;
+        }
+
+        if (chartState.indicators.rsi?.visible) {
+          const rsiData = calculateRSI(klineData, 14);
+          const series = chartRef.current.addSeries(LWC.LineSeries, {
+            color: '#9C27B0',
+            lineWidth: 2,
+            priceScaleId: 'rsi',
+            title: 'RSI',
+          });
+          
+          const validData = rsiData
+            .filter((d) => d.value !== null)
+            .map((d) => ({ time: d.time, value: d.value! }));
+          
+          series.setData(validData);
+          rsiSeriesRef.current = series;
+
+          chartRef.current.priceScale('rsi').applyOptions({
+            scaleMargins: {
+              top: 0.85,
+              bottom: 0,
+            },
+          });
+        }
+      } catch (error) {
+        console.error('Error updating RSI:', error);
+      }
+    });
+  }, [klineData, chartState.indicators.rsi, chartInitialized]);
+
+  // Analyze scalping setup
+  useEffect(() => {
+    if (klineData.length < 50) return;
+
+    const ema20Data = calculateEMA(klineData, 20);
+    const ema50Data = calculateEMA(klineData, 50);
+    const rsiData = calculateRSI(klineData, 14);
+
+    const latestEMA20 = ema20Data[ema20Data.length - 1]?.value;
+    const latestEMA50 = ema50Data[ema50Data.length - 1]?.value;
+    const latestRSI = rsiData[rsiData.length - 1]?.value;
+
+    const signal = analyzeScalpingSetup(
+      klineData,
+      latestEMA20,
+      latestEMA50,
+      latestRSI,
+      chartState.interval
+    );
+
+    setScalpingSignal(signal);
+  }, [klineData, chartState.interval]);
+
+  // WebSocket real-time updates
   useEffect(() => {
     if (!chartInitialized || !liveUpdatesEnabled) return;
 
@@ -381,14 +444,12 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
       chartState.symbol,
       chartState.interval,
       (newKline) => {
-        // Only process if this is still the current symbol/interval
         if (currentSymbolRef.current !== chartState.symbol || currentIntervalRef.current !== chartState.interval) {
           return;
         }
 
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
           try {
-            // Get latest exchange rate at update time
             const store = useDashboardStore.getState();
             const rate = store.exchangeRates[store.currency] || 1;
             
@@ -408,13 +469,11 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
               });
             }
 
-            // Update live price - capture current before updating
             setCurrentPrice((prevCurrent) => {
-              setPreviousPrice(prevCurrent); // Save current as previous
-              return newKline.close; // Set new as current
+              setPreviousPrice(prevCurrent);
+              return newKline.close;
             });
             
-            // Calculate 24h price change (approximate using first kline in current data)
             setKlineData((prev) => {
               if (prev.length > 0) {
                 const firstPrice = prev[0].open;
@@ -422,7 +481,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
                 setPriceChangePercent(changePercent);
               }
               
-              // Update klineData for indicator recalculation
               const lastTime = prev[prev.length - 1]?.time;
               if (lastTime === newKline.time) {
                 return [...prev.slice(0, -1), newKline];
@@ -453,13 +511,11 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
 
   const isSelected = selectedChart === chartState.id;
   
-  // Format price in selected currency
   const rate = exchangeRates[currency] || 1;
   const convertedPrice = currentPrice ? currentPrice * rate : null;
   const isPriceUp = currentPrice && previousPrice ? currentPrice > previousPrice : false;
   const isPriceDown = currentPrice && previousPrice ? currentPrice < previousPrice : false;
 
-  // Currency symbols
   const currencySymbols: Record<string, string> = {
     USD: '$',
     INR: '₹',
@@ -487,7 +543,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
             <span className="text-gray-400 text-xs">{chartState.interval}</span>
           </div>
           
-          {/* Live Price in selected currency */}
           {convertedPrice && (
             <div className="flex items-center gap-2 px-2 py-0.5 bg-[#2a2e39] rounded border border-[#2b2b43]">
               <div className="flex items-center gap-1">
@@ -515,7 +570,6 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
           )}
         </div>
         
-        {/* Live updates toggle button */}
         <button
           onClick={toggleLiveUpdates}
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ${
@@ -534,8 +588,22 @@ export default function TradingChart({ chartState, onChartReady }: TradingChartP
         </button>
       </div>
 
-      {/* Chart container */}
-      <div ref={chartContainerRef} className="flex-1 w-full" />
+      {/* Chart and Scalping Panel Container */}
+      <div className="flex-1 flex gap-2 p-2 overflow-hidden">
+        {/* Chart container */}
+        <div ref={chartContainerRef} className={scalpingMode ? "flex-1" : "w-full h-full"} />
+        
+        {/* Scalping Panel - only show in scalping mode */}
+        {scalpingMode && (
+          <div className="w-80 overflow-y-auto">
+            <ScalpingPanel 
+              signal={scalpingSignal} 
+              currency={currency}
+              exchangeRate={rate}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

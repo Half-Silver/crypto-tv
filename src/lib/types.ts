@@ -18,7 +18,9 @@ export interface ChartState {
   interval: TimeInterval;
   indicators: {
     sma?: { period: number; visible: boolean };
-    ema?: { period: number; visible: boolean };
+    ema20?: { visible: boolean };
+    ema50?: { visible: boolean };
+    rsi?: { visible: boolean };
     volume?: { visible: boolean };
   };
 }

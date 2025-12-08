@@ -14,6 +14,7 @@ const DEFAULT_LAYOUTS: LayoutConfig[] = [
 interface DashboardStore extends DashboardState {
   currency: Currency;
   exchangeRates: Record<string, number>;
+  scalpingMode: boolean;
   setLayout: (layout: LayoutConfig) => void;
   updateChart: (id: string, updates: Partial<ChartState>) => void;
   setSyncMode: (syncMode: Partial<SyncMode>) => void;
@@ -23,6 +24,8 @@ interface DashboardStore extends DashboardState {
   toggleIndicator: (chartId: string, indicator: string) => void;
   setCurrency: (currency: Currency) => void;
   setExchangeRates: (rates: Record<string, number>) => void;
+  setScalpingMode: (enabled: boolean) => void;
+  setScalpingPreset: () => void;
 }
 
 const createInitialCharts = (count: number): ChartState[] => {
@@ -57,6 +60,7 @@ export const useDashboardStore = create<DashboardStore>()(
         GBP: 0.79,
         JPY: 149.5,
       },
+      scalpingMode: false,
 
       setLayout: (layout) => {
         set((state) => {
@@ -139,10 +143,18 @@ export const useDashboardStore = create<DashboardStore>()(
               indicators.sma = indicators.sma?.visible 
                 ? { ...indicators.sma, visible: false }
                 : { period: 20, visible: true };
-            } else if (indicator === 'ema') {
-              indicators.ema = indicators.ema?.visible
-                ? { ...indicators.ema, visible: false }
-                : { period: 9, visible: true };
+            } else if (indicator === 'ema20') {
+              indicators.ema20 = indicators.ema20?.visible
+                ? { visible: false }
+                : { visible: true };
+            } else if (indicator === 'ema50') {
+              indicators.ema50 = indicators.ema50?.visible
+                ? { visible: false }
+                : { visible: true };
+            } else if (indicator === 'rsi') {
+              indicators.rsi = indicators.rsi?.visible
+                ? { visible: false }
+                : { visible: true };
             } else if (indicator === 'volume') {
               indicators.volume = indicators.volume?.visible
                 ? { visible: false }
@@ -161,6 +173,70 @@ export const useDashboardStore = create<DashboardStore>()(
       setExchangeRates: (rates) => {
         set({ exchangeRates: rates });
       },
+
+      setScalpingMode: (enabled) => {
+        set({ scalpingMode: enabled });
+      },
+
+      setScalpingPreset: () => {
+        set((state) => {
+          // Scalping preset: 2x2 layout, same symbol (SOL), 5min + 1min intervals, EMA20/50 + RSI enabled
+          const scalpingSymbol = 'SOLUSDT';
+          
+          const scalpingCharts: ChartState[] = [
+            {
+              id: 'chart-0',
+              symbol: scalpingSymbol,
+              interval: '5m',
+              indicators: {
+                ema20: { visible: true },
+                ema50: { visible: true },
+                rsi: { visible: true },
+                volume: { visible: true },
+              },
+            },
+            {
+              id: 'chart-1',
+              symbol: scalpingSymbol,
+              interval: '1m',
+              indicators: {
+                ema20: { visible: true },
+                ema50: { visible: true },
+                rsi: { visible: true },
+                volume: { visible: true },
+              },
+            },
+            {
+              id: 'chart-2',
+              symbol: scalpingSymbol,
+              interval: '1m',
+              indicators: {
+                ema20: { visible: true },
+                ema50: { visible: true },
+                rsi: { visible: true },
+                volume: { visible: false },
+              },
+            },
+            {
+              id: 'chart-3',
+              symbol: scalpingSymbol,
+              interval: '5m',
+              indicators: {
+                ema20: { visible: true },
+                ema50: { visible: true },
+                rsi: { visible: false },
+                volume: { visible: true },
+              },
+            },
+          ];
+          
+          return {
+            layout: DEFAULT_LAYOUTS[2], // 2x2
+            charts: scalpingCharts,
+            scalpingMode: true,
+          };
+        });
+      },
     }),
     {
       name: 'dashboard-storage',
@@ -168,6 +244,7 @@ export const useDashboardStore = create<DashboardStore>()(
         layout: state.layout,
         syncMode: state.syncMode,
         currency: state.currency,
+        scalpingMode: state.scalpingMode,
         charts: state.charts.map(({ id, symbol, interval, indicators }) => ({
           id,
           symbol,

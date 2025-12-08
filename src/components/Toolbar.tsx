@@ -3,7 +3,7 @@
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useDashboardStore } from '@/lib/store';
-import { LayoutGrid, TrendingUp, Activity, BarChart3, DollarSign } from 'lucide-react';
+import { LayoutGrid, TrendingUp, Activity, BarChart3, DollarSign, Zap } from 'lucide-react';
 import type { TimeInterval, Currency } from '@/lib/types';
 
 const INTERVALS: { value: TimeInterval; label: string }[] = [
@@ -36,7 +36,7 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ onLayoutClick }: ToolbarProps) {
-  const { selectedChart, charts, currency, updateChartInterval, toggleIndicator, setCurrency } = useDashboardStore();
+  const { selectedChart, charts, currency, scalpingMode, updateChartInterval, toggleIndicator, setCurrency, setScalpingPreset } = useDashboardStore();
 
   const selectedChartData = charts.find((c) => c.id === selectedChart);
 
@@ -67,6 +67,23 @@ export default function Toolbar({ onLayoutClick }: ToolbarProps) {
       >
         <LayoutGrid className="w-4 h-4 mr-2" />
         Layout
+      </Button>
+
+      <div className="w-px h-6 bg-[#2B2B43]" />
+
+      {/* Scalping Mode Preset */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={setScalpingPreset}
+        className={`${
+          scalpingMode
+            ? 'bg-[#FF6D00] text-white hover:bg-[#F57C00]'
+            : 'text-gray-300 hover:text-white hover:bg-[#2A2E39]'
+        }`}
+      >
+        <Zap className="w-4 h-4 mr-2" />
+        Scalping 10×
       </Button>
 
       <div className="w-px h-6 bg-[#2B2B43]" />
@@ -128,31 +145,46 @@ export default function Toolbar({ onLayoutClick }: ToolbarProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => handleIndicatorToggle('sma')}
+          onClick={() => handleIndicatorToggle('ema20')}
           disabled={!selectedChart}
           className={`h-8 text-xs ${
-            selectedChartData?.indicators.sma?.visible
+            selectedChartData?.indicators.ema20?.visible
               ? 'bg-[#2962FF] text-white hover:bg-[#1E53E5]'
               : 'text-gray-300 hover:text-white hover:bg-[#2A2E39]'
           }`}
         >
           <TrendingUp className="w-3 h-3 mr-1" />
-          SMA
+          EMA20
         </Button>
 
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => handleIndicatorToggle('ema')}
+          onClick={() => handleIndicatorToggle('ema50')}
           disabled={!selectedChart}
           className={`h-8 text-xs ${
-            selectedChartData?.indicators.ema?.visible
+            selectedChartData?.indicators.ema50?.visible
               ? 'bg-[#FF6D00] text-white hover:bg-[#F57C00]'
               : 'text-gray-300 hover:text-white hover:bg-[#2A2E39]'
           }`}
         >
+          <TrendingUp className="w-3 h-3 mr-1" />
+          EMA50
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleIndicatorToggle('rsi')}
+          disabled={!selectedChart}
+          className={`h-8 text-xs ${
+            selectedChartData?.indicators.rsi?.visible
+              ? 'bg-[#9C27B0] text-white hover:bg-[#7B1FA2]'
+              : 'text-gray-300 hover:text-white hover:bg-[#2A2E39]'
+          }`}
+        >
           <Activity className="w-3 h-3 mr-1" />
-          EMA
+          RSI
         </Button>
 
         <Button
